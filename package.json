@@ -30,9 +30,6 @@
     "build": "rimraf ./dist && tsc",
     "prepublishOnly": "npm run lint && npm run build"
   },
-  "dependencies": {
-    "wled-client": "^0.22.1"
-  },
   "publishConfig": {
     "@smhex:registry": "https://npm.pkg.github.com"
   },
@@ -46,5 +43,8 @@
     "rimraf": "^5.0.5",
     "ts-node": "^10.9.1",
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
   }
 }

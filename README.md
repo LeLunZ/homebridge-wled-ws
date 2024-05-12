@@ -8,8 +8,7 @@
 
 ## Homebridge WLED plugin
 
-This is a Homebridge dynamic platform plugin for controlling LED strips using Websockets. It is based on the fantastic [wled-client](https://github.com/ShiftLimits/wled-client) library, which provides access to WLED's JSON API using websockets.
-
+This is a Homebridge dynamic platform plugin for controlling LED strips using the JSON API over Websockets.
 
 > [!NOTE] 
 > Websockets are enabled by default since WLED version 0.10.2
@@ -57,10 +56,4 @@ Before starting the implementation of this plugin I intended to use WLED's MQTT 
 1. WLED supports segments, however the created Homekit accessory only controls the first (main) segment
 2. The brightness is set for the whole strip, brightness per segment is ignored
 
-
-## TODOs
-- ~~harden controller communication (reconnects)~~
-- ~~support color picker~~
-- ~~add presets and playlists~~
-- add effects
 

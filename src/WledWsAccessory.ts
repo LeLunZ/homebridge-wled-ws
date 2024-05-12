@@ -1,7 +1,6 @@
 import { Service, PlatformAccessory, CharacteristicValue, CharacteristicGetCallback, CharacteristicSetCallback} from 'homebridge';
 import { WledWsHomebridgePlatform } from './WledWsPlatform';
-import { WledController, LightCapability, WledControllerPreset } from './WledController';
-import { WLEDClient } from 'wled-client';
+import { WledController, WledClient, LightCapability, WledControllerPreset } from './WledController';
 import { Logger } from 'homebridge';
 import { PLUGIN_NAME, PLUGIN_AUTHOR } from './settings';
 import { rgbToHsv, hsvToRgb } from './WledUtils';
@@ -26,7 +25,7 @@ export class WledWsPlatformAccessory {
   private presetList : WledControllerPreset[] = [];
   private activePreset : WledControllerPreset | null = null;
   private activePlaylist : WledControllerPreset | null = null;
-  private wledClient;
+  private wledClient : WledClient | null = null;
   private connectionClosed = false;
   private connectionEstablished = false;
   private reconnectIntervalId: Timeout | null = null;
@@ -104,9 +103,9 @@ export class WledWsPlatformAccessory {
 
     this.platform.log.info('Set controller %s On state to: %s', controller.name, value ? 'On' : 'Off');
     if (value) {
-      this.wledClient.turnOn();
+      //this.wledClient.turnOn();
     } else{
-      this.wledClient.turnOff();
+      //this.wledClient.turnOff();
     }
   }
 
@@ -147,7 +146,7 @@ export class WledWsPlatformAccessory {
     this.ledState.Brightness = value as number;
 
     this.platform.log.info('Set controller %s brightness to: %s', controller.name, value);
-    this.wledClient.setBrightness(Math.round(this.ledState.Brightness*255/100));
+    //this.wledClient.setBrightness(Math.round(this.ledState.Brightness*255/100));
   }
 
   /**
@@ -177,7 +176,7 @@ export class WledWsPlatformAccessory {
 
     const { r, g, b } = hsvToRgb(value as number / 360, this.ledState.Saturation / 100, this.ledState.Brightness / 100);
     this.platform.log.info(`Set controller %s hue to: %s (RGB: ${r},${g},${b})`, controller.name, value);
-    this.wledClient.setColor([r, g, b]);
+    //this.wledClient.setColor([r, g, b]);
   }
 
   /**
@@ -206,7 +205,7 @@ export class WledWsPlatformAccessory {
     this.ledState.Saturation = value as number;
     const { r, g, b } = hsvToRgb(this.ledState.Hue / 360, value as number / 100, this.ledState.Brightness / 100);
     this.platform.log.info(`Set controller %s saturation to: %s (RGB: ${r},${g},${b})`, controller.name, value);
-    this.wledClient.setColor([r, g, b]);
+    //this.wledClient.setColor([r, g, b]);
   }
 
   /**
@@ -237,9 +236,9 @@ export class WledWsPlatformAccessory {
     // switch on new preset
     preset.on = <boolean>value;
     if (preset.on){
-      this.wledClient.setPreset(preset.id);
+      //this.wledClient.setPreset(preset.id);
     } else{
-      this.wledClient.turnOff();
+      //this.wledClient.turnOff();
     }
     callback(null);
   }
@@ -264,33 +263,27 @@ export class WledWsPlatformAccessory {
     const controller = <WledController>this.accessory.context.device;
     this.log.info(`${isReconnect?'Reconnecting':'Connecting'} to controller %s at address %s`, controller.name, controller.address);
 
-    //this.wledClient = new WLEDClient(controller.address);
-    this.wledClient = new WLEDClient({
-      host:  controller.address,
-      websocket: {
-        reconnect : true,
-      },
-      immediate: true,
-      secure: false,
-      init : {
-        presets: true,
-        config: true,
-      },
+    this.wledClient = new WledClient(controller);
+
+    this.wledClient.ws.on('error', (error) => {
+      this.onError(error);
     });
 
-    this.wledClient.on('open', () => {
+    this.wledClient.ws.on('open', () => {
       this.onConnected();
     });
 
-    this.wledClient.on('close', () => {
+    this.wledClient.ws.on('close', () => {
       this.onDisconnected();
     });
 
+
     // update accessory state
-    this.wledClient.on('update:state', () => {
-      this.onStateReceived();
+    this.wledClient.ws.on('message', (data) => {
+      this.onStateReceived(data);
     });
 
+    /**
     this.wledClient.on('update:presets', () => {
       this.onPresetsReceived();
     });
@@ -307,16 +300,14 @@ export class WledWsPlatformAccessory {
       this.onInfoReceived();
     });
 
-    this.wledClient.on('error', (error) => {
-      this.onError(error);
-    });
 
 
     try {
-      await this.wledClient.init();
+      //await this.wledClient.init();
     } catch {
       this.log.error('Error connecting controller %s at address %s', controller.name, controller.address);
     }
+    */
     return true;
   }
 
@@ -333,7 +324,7 @@ export class WledWsPlatformAccessory {
       }
 
       this.connectionClosed = true;
-      this.wledClient.disconnect();
+      this.wledClient?.ws.close();
     }
   }
 
@@ -341,7 +332,11 @@ export class WledWsPlatformAccessory {
    * Callback: each time controller's state changes this function is called. State changes can
    * triggered by user interaction or other clients
    */
-  onStateReceived(){
+  onStateReceived(data){
+    const state = JSON.parse(data).state;
+    const controller = <WledController>this.accessory.context.device;
+    this.log.info(`Received controller %s state update ${this.loggingEnabled?JSON.stringify(state):''}`, controller.name);
+    /**
     const controller = <WledController>this.accessory.context.device;
     this.log.info(`Received controller %s state update ${this.loggingEnabled?JSON.stringify(this.wledClient.state):''}`, controller.name);
 
@@ -430,6 +425,7 @@ export class WledWsPlatformAccessory {
       }
       this.ledState.PlaylistId = this.wledClient.state.playlistId;
     }
+     */
   }
 
   /**
@@ -438,6 +434,7 @@ export class WledWsPlatformAccessory {
    * are available on the controller. If not, a error message is logged to the console
    */
   onPresetsReceived(){
+    /**
     const controller = <WledController>this.accessory.context.device;
     this.log.info(`Received presets for controller %s ${this.loggingEnabled?JSON.stringify(this.wledClient.presets):''}`, controller.name);
 
@@ -509,6 +506,7 @@ export class WledWsPlatformAccessory {
         }
       }
     }
+     */
   }
 
   /**
@@ -516,8 +514,10 @@ export class WledWsPlatformAccessory {
    * triggered by user interaction or other clients
    */
   onEffectsReceived(){
+    /**
     const controller = <WledController>this.accessory.context.device;
     this.log.info(`Received effects for controller %s ${this.loggingEnabled?JSON.stringify(this.wledClient.effects):''}`, controller.name);
+   */
   }
 
   /**
@@ -525,8 +525,10 @@ export class WledWsPlatformAccessory {
    * triggered by user interaction or other clients
    */
   onConfigReceived(){
+    /**
     const controller = <WledController>this.accessory.context.device;
     this.log.info(`Received config for controller %s ${this.loggingEnabled?JSON.stringify(this.wledClient.config):''}`, controller.name);
+    */
   }
 
   /**
@@ -550,18 +552,20 @@ export class WledWsPlatformAccessory {
    * configured by the user or an API anytime - so we need to update this information regularly.
    */
   refreshPresets(){
-    const controller = <WledController>this.accessory.context.device;
+    /** const controller = <WledController>this.accessory.context.device;
     this.log.info('Requesting presets for controller %s', controller.name);
     this.wledClient.refreshPresets();
+    */
   }
 
   /**
    * Refresh effects to update effect information.
    */
   refreshEffects(){
-    const controller = <WledController>this.accessory.context.device;
+    /** const controller = <WledController>this.accessory.context.device;
     this.log.info('Requesting effects for controller %s', controller.name);
     this.wledClient.refreshEffects();
+    */
   }
 
   /**
@@ -577,9 +581,11 @@ export class WledWsPlatformAccessory {
    * Callback: connection to the controller is closed
    */
   onDisconnected(){
-    this.connectionEstablished = false;
     const controller = <WledController>this.accessory.context.device;
-    this.log.info('Controller %s disconnected', controller.name);
+    if (this.connectionEstablished){
+      this.log.info('Controller %s disconnected', controller.name);
+      this.connectionEstablished = false;
+    }
   }
 
   /**
@@ -618,6 +624,7 @@ export class WledWsPlatformAccessory {
    *        - LightBulb with characteristic On, Brightness for White (can be disabled in settings)
    */
   updateAccessoryInformation(){
+    /**
     const controller = <WledController>this.accessory.context.device;
     this.log.info('Update accessory info for controller %s to: brand=%s product=%s version=%s mac=%s lc=%s',
       controller.name, this.wledClient.info.brand, this.wledClient.info.product, this.wledClient.info.version,
@@ -664,6 +671,7 @@ export class WledWsPlatformAccessory {
         .onSet(this.setSaturation.bind(this));
     }
     this.ledState.LightCapability = lc;
+     */
   }
 
 }
